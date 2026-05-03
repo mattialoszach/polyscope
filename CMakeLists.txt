@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
-project(polyscope LANGUAGES CXX)
+
+# Vision hand-pose API requires macOS 11 (Big Sur)
+set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS deployment target" FORCE)
+
+project(polyscope LANGUAGES CXX OBJCXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -29,12 +33,13 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(glm)
 
 # ── Executable ───────────────────────────────────────────────────────────────
-add_executable(polyscope
+add_executable(polyscope MACOSX_BUNDLE
     src/main.cpp
     src/mesh.cpp
     src/shader.cpp
     src/camera.cpp
     src/renderer.cpp
+    src/gesture.mm
 )
 
 target_include_directories(polyscope PRIVATE src)
@@ -48,9 +53,21 @@ target_compile_definitions(polyscope PRIVATE
 
 target_link_libraries(polyscope PRIVATE glfw glm::glm)
 
-# macOS: link the OpenGL framework directly; no function loader (GLAD) is
-# needed because all GL 3.x symbols are exported by OpenGL.framework.
 if(APPLE)
-    target_link_libraries(polyscope PRIVATE "-framework OpenGL")
+    target_link_libraries(polyscope PRIVATE
+        "-framework OpenGL"
+        "-framework AVFoundation"
+        "-framework Vision"
+        "-framework CoreVideo"
+        "-framework CoreMedia"
+    )
     target_compile_definitions(polyscope PRIVATE GL_SILENCE_DEPRECATION)
+
+    set_target_properties(polyscope PROPERTIES
+        MACOSX_BUNDLE_GUI_IDENTIFIER    "com.polyscope.viewer"
+        MACOSX_BUNDLE_BUNDLE_NAME       "Polyscope"
+        MACOSX_BUNDLE_BUNDLE_VERSION    "1.0"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+        MACOSX_BUNDLE_INFO_PLIST        "${CMAKE_SOURCE_DIR}/Info.plist"
+    )
 endif()

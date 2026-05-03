@@ -3,6 +3,7 @@
 #include "mesh.h"
 #include "renderer.h"
 #include "camera.h"
+#include "gesture.h"
 
 #include <iostream>
 #include <string>
@@ -12,8 +13,9 @@
 // ── Application state ─────────────────────────────────────────────────────────
 // All mutable state that the GLFW callbacks need to reach.
 struct App {
-    std::unique_ptr<Mesh>     mesh;
-    std::unique_ptr<Renderer> renderer;
+    std::unique_ptr<Mesh>          mesh;
+    std::unique_ptr<Renderer>      renderer;
+    std::unique_ptr<GestureSource> gesture;
     Camera camera;
 
     // Mouse tracking
@@ -29,11 +31,12 @@ struct App {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-static void updateTitle(GLFWwindow* win, const std::string& path, size_t tris) {
+static void updateTitle(GLFWwindow* win, const std::string& path, size_t tris, bool gestureOn) {
     std::string name  = std::filesystem::path(path).filename().string();
     std::string title = "polyscope — " + name
                       + "  (" + std::to_string(tris) + " triangles)"
-                      + "  [R]=reset  [G]=grid  [W]=wireframe  [Esc]=quit";
+                      + "  [R]=reset  [G]=grid  [W]=wireframe  [Esc]=quit"
+                      + (gestureOn ? "  | hand: ON" : "  | hand: OFF");
     glfwSetWindowTitle(win, title.c_str());
 }
 
@@ -92,7 +95,7 @@ static void cbDrop(GLFWwindow* win, int count, const char** paths) {
     try {
         app->mesh = std::make_unique<Mesh>(paths[0]);
         app->camera.reset();
-        updateTitle(win, paths[0], app->mesh->triangleCount());
+        updateTitle(win, paths[0], app->mesh->triangleCount(), app->gesture->isRunning());
         std::cout << "Loaded: " << paths[0] << "\n";
     } catch (const std::exception& e) {
         std::cerr << "Drop failed: " << e.what() << "\n";
@@ -140,7 +143,14 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    updateTitle(window, objPath, app.mesh->triangleCount());
+    // Start gesture source (camera capture runs on a background thread)
+    app.gesture = std::make_unique<GestureSource>();
+    if (app.gesture->isRunning())
+        std::cout << "Hand gestures: ON  (open=orbit | peace=pan | pinch=zoom)\n";
+    else
+        std::cout << "Hand gestures: OFF (camera unavailable or permission denied)\n";
+
+    updateTitle(window, objPath, app.mesh->triangleCount(), app.gesture->isRunning());
 
     // ── Register callbacks ────────────────────────────────────────────────────
     glfwSetWindowUserPointer(window, &app);
@@ -159,6 +169,18 @@ int main(int argc, char** argv) {
 
     // ── Main loop ─────────────────────────────────────────────────────────────
     while (!glfwWindowShouldClose(window)) {
+        // Apply any pending gesture event from the background capture thread
+        auto ev = app.gesture->poll();
+        switch (ev.type) {
+            case GestureEvent::Type::Orbit:
+                app.camera.onMouseMove(ev.dx, ev.dy, true,  false); break;
+            case GestureEvent::Type::Pan:
+                app.camera.onMouseMove(ev.dx, ev.dy, false, true);  break;
+            case GestureEvent::Type::Zoom:
+                app.camera.onScroll(ev.scale);                       break;
+            default: break;
+        }
+
         app.renderer->render(*app.mesh, app.camera, app.showGrid, app.wireframe);
         glfwSwapBuffers(window);
         glfwPollEvents();
