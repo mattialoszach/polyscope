@@ -35,7 +35,7 @@ static void updateTitle(GLFWwindow* win, const std::string& path, size_t tris, b
     std::string name  = std::filesystem::path(path).filename().string();
     std::string title = "polyscope — " + name
                       + "  (" + std::to_string(tris) + " triangles)"
-                      + "  [R]=reset  [G]=grid  [W]=wireframe  [Esc]=quit"
+                      + "  [R]=reset  [G]=grid  [W]=wireframe  [C]=cam  [Esc]=quit"
                       + (gestureOn ? "  | hand: ON" : "  | hand: OFF");
     glfwSetWindowTitle(win, title.c_str());
 }
@@ -61,6 +61,12 @@ static void cbKey(GLFWwindow* win, int key, int /*scan*/, int action, int /*mods
         case GLFW_KEY_R:      app->camera.reset();                       break;
         case GLFW_KEY_G:      app->showGrid  = !app->showGrid;           break;
         case GLFW_KEY_W:      app->wireframe = !app->wireframe;          break;
+        case GLFW_KEY_C: {
+            bool next = !app->gesture->isRunning();
+            app->gesture->setActive(next);
+            std::cout << "Hand gestures: " << (next ? "ON" : "OFF") << "\n";
+            break;
+        }
         default: break;
     }
 }
@@ -182,6 +188,11 @@ int main(int argc, char** argv) {
         }
 
         app.renderer->render(*app.mesh, app.camera, app.showGrid, app.wireframe);
+
+        // Draw camera preview + hand skeleton overlay when gesture is active
+        if (app.gesture->isRunning())
+            app.renderer->drawOverlay(app.gesture->getFrame());
+
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
