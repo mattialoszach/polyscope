@@ -23,6 +23,7 @@ struct FrameSnapshot {
     int                       width  = 0;
     int                       height = 0;
     std::array<glm::vec2, 21> joints{};        // hand landmark positions
+    GestureEvent::Type        activeGesture = GestureEvent::Type::None;
     bool                      landmarksValid = false;
     bool                      hasFrame       = false;
 };
@@ -37,16 +38,16 @@ struct GestureImpl;
 //   - getFrame() latest camera frame + 21-joint landmarks for the UI preview
 //
 // Gesture mapping:
-//   Open hand / one+ fingers  → Orbit
+//   Open hand (3+ fingers)    → Orbit
 //   Peace sign (idx + mid)    → Pan
-//   Pinch (thumb ↔ index)     → Zoom
+//   Pinch + move toward/away   → Zoom
 class GestureSource {
 public:
     GestureSource();
     ~GestureSource();
 
     GestureEvent  poll();        // drain one event; call once per frame
-    FrameSnapshot getFrame();    // latest pixels + landmarks (copies on new frame only)
+    FrameSnapshot getFrame();    // thread-safe copy of latest pixels + landmarks
 
     void setActive(bool on);     // start / stop the AVCaptureSession
     bool isRunning() const;      // true when session is running

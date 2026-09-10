@@ -39,6 +39,7 @@ add_executable(polyscope MACOSX_BUNDLE
     src/shader.cpp
     src/camera.cpp
     src/renderer.cpp
+    src/gesture_tracker.cpp
     src/gesture.mm
 )
 
@@ -70,4 +71,15 @@ if(APPLE)
         MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
         MACOSX_BUNDLE_INFO_PLIST        "${CMAKE_SOURCE_DIR}/Info.plist"
     )
+endif()
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(gesture_tracker_tests
+        tests/gesture_tracker_tests.cpp
+        src/gesture_tracker.cpp
+    )
+    target_include_directories(gesture_tracker_tests PRIVATE src)
+    target_link_libraries(gesture_tracker_tests PRIVATE glm::glm)
+    add_test(NAME gesture_tracker COMMAND gesture_tracker_tests)
 endif()
