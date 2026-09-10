@@ -7,6 +7,7 @@ A fast and minimal 3D model viewer written in C++.
 - Blinn-Phong shading with a warm/cool two-light setup
 - Toggleable XZ **grid** and **wireframe** mode
 - Drag-and-drop to swap models at runtime
+- Camera hand controls with live skeleton and gesture feedback (macOS)
 
 ## Controls
 
@@ -18,7 +19,24 @@ A fast and minimal 3D model viewer written in C++.
 | `R` | Reset camera |
 | `G` | Toggle grid |
 | `W` | Toggle wireframe |
+| `C` | Toggle camera hand controls |
 | `Esc` | Quit |
+
+## Hand controls
+
+Keep one hand fully visible in the camera preview. A grey outline means no action
+is active; the outline changes colour and the window title names the gesture once
+it is confirmed.
+
+| Gesture | Action |
+|---------|--------|
+| Open palm (3+ fingers) + move | Orbit |
+| Peace sign + move | Pan |
+| Pinch thumb/index, then move toward/away from camera | Zoom in/out |
+
+Gestures are confirmed over several frames to avoid accidental mode changes. A
+closed fist or a single raised finger is idle, so it can be used to reposition
+your hand without moving the model.
 
 ## Building
 
@@ -27,17 +45,17 @@ GLFW and GLM are fetched automatically at configure time — no manual installs.
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j$(nproc)
+cmake --build build --parallel
 ```
 
 ## Running
 
 ```bash
 # Default sample model
-./build/polyscope
+open build/polyscope.app
 
 # Your own OBJ
-./build/polyscope path/to/model.obj
+./build/polyscope.app/Contents/MacOS/polyscope path/to/model.obj
 ```
 
 You can also **drag and drop** any `.obj` file onto the running window.
@@ -56,6 +74,8 @@ polyscope/
 │   ├── mesh.h/cpp          # OBJ parser + GPU upload
 │   ├── camera.h/cpp        # arcball camera
 │   ├── renderer.h/cpp      # draw calls
+│   ├── gesture_tracker.*   # gesture classification + motion filtering
+│   ├── gesture.mm          # Apple Vision + camera capture
 │   └── main.cpp            # window + event loop
 └── assets/
     └── sample.obj          # default cube model

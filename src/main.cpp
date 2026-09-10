@@ -27,16 +27,30 @@ struct App {
     // Toggles (keyboard shortcuts)
     bool showGrid   = true;
     bool wireframe  = false;
+
+    std::string        modelPath;
+    GestureEvent::Type activeGesture = GestureEvent::Type::None;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-static void updateTitle(GLFWwindow* win, const std::string& path, size_t tris, bool gestureOn) {
-    std::string name  = std::filesystem::path(path).filename().string();
+static const char* gestureLabel(GestureEvent::Type gesture) {
+    switch (gesture) {
+        case GestureEvent::Type::Orbit: return "ORBIT";
+        case GestureEvent::Type::Pan:   return "PAN";
+        case GestureEvent::Type::Zoom:  return "ZOOM";
+        default:                        return "ready";
+    }
+}
+
+static void updateTitle(GLFWwindow* win, const App& app) {
+    std::string name  = std::filesystem::path(app.modelPath).filename().string();
     std::string title = "polyscope — " + name
-                      + "  (" + std::to_string(tris) + " triangles)"
+                      + "  (" + std::to_string(app.mesh->triangleCount()) + " triangles)"
                       + "  [R]=reset  [G]=grid  [W]=wireframe  [C]=cam  [Esc]=quit"
-                      + (gestureOn ? "  | hand: ON" : "  | hand: OFF");
+                      + (app.gesture->isRunning()
+                            ? std::string("  | hand: ") + gestureLabel(app.activeGesture)
+                            : "  | hand: OFF");
     glfwSetWindowTitle(win, title.c_str());
 }
 
@@ -64,7 +78,10 @@ static void cbKey(GLFWwindow* win, int key, int /*scan*/, int action, int /*mods
         case GLFW_KEY_C: {
             bool next = !app->gesture->isRunning();
             app->gesture->setActive(next);
-            std::cout << "Hand gestures: " << (next ? "ON" : "OFF") << "\n";
+            app->activeGesture = GestureEvent::Type::None;
+            updateTitle(win, *app);
+            std::cout << "Hand gestures: "
+                      << (app->gesture->isRunning() ? "ON" : "OFF") << "\n";
             break;
         }
         default: break;
@@ -100,8 +117,9 @@ static void cbDrop(GLFWwindow* win, int count, const char** paths) {
     auto* app = static_cast<App*>(glfwGetWindowUserPointer(win));
     try {
         app->mesh = std::make_unique<Mesh>(paths[0]);
+        app->modelPath = paths[0];
         app->camera.reset();
-        updateTitle(win, paths[0], app->mesh->triangleCount(), app->gesture->isRunning());
+        updateTitle(win, *app);
         std::cout << "Loaded: " << paths[0] << "\n";
     } catch (const std::exception& e) {
         std::cerr << "Drop failed: " << e.what() << "\n";
@@ -139,12 +157,16 @@ int main(int argc, char** argv) {
 
     // ── Build app state ───────────────────────────────────────────────────────
     App app;
+    app.modelPath = objPath;
     try {
         // Renderer must be created AFTER the GL context is current
         app.renderer = std::make_unique<Renderer>();
         app.mesh     = std::make_unique<Mesh>(objPath);
     } catch (const std::exception& e) {
         std::cerr << "Startup error: " << e.what() << "\n";
+        app.mesh.reset();
+        app.renderer.reset(); // release GL objects while the context still exists
+        glfwDestroyWindow(window);
         glfwTerminate();
         return 1;
     }
@@ -156,7 +178,7 @@ int main(int argc, char** argv) {
     else
         std::cout << "Hand gestures: OFF (camera unavailable or permission denied)\n";
 
-    updateTitle(window, objPath, app.mesh->triangleCount(), app.gesture->isRunning());
+    updateTitle(window, app);
 
     // ── Register callbacks ────────────────────────────────────────────────────
     glfwSetWindowUserPointer(window, &app);
@@ -189,14 +211,26 @@ int main(int argc, char** argv) {
 
         app.renderer->render(*app.mesh, app.camera, app.showGrid, app.wireframe);
 
-        // Draw camera preview + hand skeleton overlay when gesture is active
-        if (app.gesture->isRunning())
-            app.renderer->drawOverlay(app.gesture->getFrame());
+        // Draw camera preview + hand skeleton overlay when gesture is active.
+        // The title and border provide immediate classifier feedback.
+        if (app.gesture->isRunning()) {
+            FrameSnapshot frame = app.gesture->getFrame();
+            if (frame.activeGesture != app.activeGesture) {
+                app.activeGesture = frame.activeGesture;
+                updateTitle(window, app);
+            }
+            app.renderer->drawOverlay(frame);
+        }
 
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
+    // Gesture capture must stop and GPU resources must be released while their
+    // respective runtime/context is still alive.
+    app.gesture.reset();
+    app.mesh.reset();
+    app.renderer.reset();
     glfwDestroyWindow(window);
     glfwTerminate();
     return 0;

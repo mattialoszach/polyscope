@@ -4,6 +4,19 @@
 #include <vector>
 #include <array>
 
+namespace {
+
+glm::vec4 gestureColor(GestureEvent::Type gesture) {
+    switch (gesture) {
+        case GestureEvent::Type::Orbit: return {0.20f, 1.00f, 0.45f, 1.f};
+        case GestureEvent::Type::Pan:   return {1.00f, 0.68f, 0.18f, 1.f};
+        case GestureEvent::Type::Zoom:  return {0.95f, 0.30f, 1.00f, 1.f};
+        default:                        return {0.60f, 0.60f, 0.60f, 1.f};
+    }
+}
+
+} // namespace
+
 // ── Construction ──────────────────────────────────────────────────────────────
 
 Renderer::Renderer() {
@@ -239,7 +252,7 @@ void Renderer::drawOverlay(const FrameSnapshot& frame) {
         glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(border), border);
         m_flatShader.use();
         m_flatShader.set("uMVP",   glm::mat4(1.f));
-        m_flatShader.set("uColor", glm::vec4(0.6f, 0.6f, 0.6f, 1.f));
+        m_flatShader.set("uColor", gestureColor(frame.activeGesture));
         glDrawArrays(GL_LINES, 0, 8);
     }
 
@@ -291,7 +304,7 @@ void Renderer::drawOverlay(const FrameSnapshot& frame) {
             glBufferSubData(GL_ARRAY_BUFFER, 0,
                             static_cast<GLsizeiptr>(lines.size() * sizeof(glm::vec3)),
                             lines.data());
-            m_flatShader.set("uColor", glm::vec4(0.2f, 1.f, 0.45f, 1.f));  // lime green
+            m_flatShader.set("uColor", gestureColor(frame.activeGesture));
             glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(lines.size()));
         }
         if (!pts.empty()) {
