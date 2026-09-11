@@ -129,7 +129,7 @@ static void cbDrop(GLFWwindow* win, int count, const char** paths) {
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 int main(int argc, char** argv) {
-    const std::string objPath = argc > 1 ? argv[1] : ASSET_DIR "/sample.obj";
+    const std::string modelPath = argc > 1 ? argv[1] : ASSET_DIR "/sample.obj";
 
     glfwSetErrorCallback(cbError);
     if (!glfwInit()) {
@@ -157,11 +157,11 @@ int main(int argc, char** argv) {
 
     // ── Build app state ───────────────────────────────────────────────────────
     App app;
-    app.modelPath = objPath;
+    app.modelPath = modelPath;
     try {
         // Renderer must be created AFTER the GL context is current
         app.renderer = std::make_unique<Renderer>();
-        app.mesh     = std::make_unique<Mesh>(objPath);
+        app.mesh     = std::make_unique<Mesh>(modelPath);
     } catch (const std::exception& e) {
         std::cerr << "Startup error: " << e.what() << "\n";
         app.mesh.reset();

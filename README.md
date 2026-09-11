@@ -1,11 +1,11 @@
 # polyscope
 
-A small 3D model viewer for macOS, written in C++ and OpenGL. Load an OBJ file
-and inspect it with a mouse or hand gestures.
+A small 3D model viewer for macOS, written in C++ and OpenGL. Load a model and
+inspect it with a mouse or hand gestures.
 
 ## Features
 
-- Wavefront OBJ loading, including polygons and normals
+- 3MF, STL, OBJ, PLY, glTF/GLB, FBX, and Collada model loading
 - Orbit, pan and zoom controls
 - Shaded and wireframe views with an optional ground grid
 - Drag-and-drop model loading
@@ -13,8 +13,8 @@ and inspect it with a mouse or hand gestures.
 
 ## Build
 
-You need macOS 11 or newer, CMake 3.20+, and the Xcode Command Line Tools.
-GLFW and GLM are downloaded automatically.
+You need macOS 11 or newer, CMake 3.22+, and the Xcode Command Line Tools.
+GLFW, GLM, and Assimp are downloaded automatically.
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -29,13 +29,15 @@ Open the bundled sample model:
 open build/polyscope.app
 ```
 
-To open a particular OBJ file:
+To open a particular model file:
 
 ```bash
-open build/polyscope.app --args path/to/model.obj
+open build/polyscope.app --args path/to/model.3mf
 ```
 
-You can also drag an OBJ file onto the viewer while it is running.
+You can also drag any supported model file onto the viewer while it is running.
+The viewer imports geometry and normals; model materials, textures, cameras, and
+animations are not rendered yet.
 
 ## Mouse and keyboard
 

@@ -1,21 +1,13 @@
 #pragma once
 #include "gl.h"
-#include <glm/glm.hpp>
+#include "model_loader.h"
 #include <string>
 #include <vector>
 
-// A single interleaved vertex: 3 floats position + 3 floats normal = 24 bytes
-struct Vertex {
-    glm::vec3 position;
-    glm::vec3 normal;
-};
-
-// Parses a Wavefront OBJ file and uploads the resulting triangle geometry to
-// the GPU.  The mesh is automatically centered at the origin and scaled to fit
-// a unit sphere so it always fills the view regardless of the original units.
+// Loads a supported model file and uploads its triangle geometry to the GPU.
 class Mesh {
 public:
-    explicit Mesh(const std::string& objPath);
+    explicit Mesh(const std::string& path);
     ~Mesh();
 
     Mesh(const Mesh&)            = delete;
