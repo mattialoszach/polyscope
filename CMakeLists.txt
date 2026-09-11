@@ -72,6 +72,13 @@ add_executable(polyscope MACOSX_BUNDLE
     src/gesture.mm
 )
 
+# gesture.mm creates Objective-C framework objects for every camera frame.
+# Compile it with ARC so those short-lived Vision/AVFoundation objects are
+# released at the end of the callback's autorelease pool.
+set_source_files_properties(src/gesture.mm PROPERTIES
+    COMPILE_OPTIONS "-fobjc-arc"
+)
+
 target_include_directories(polyscope PRIVATE src)
 
 # Embed the source-tree paths for shaders and assets so the binary always
