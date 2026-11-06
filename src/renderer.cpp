@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "camera_frame.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <vector>
@@ -183,15 +184,15 @@ void Renderer::render(const Mesh& mesh, const Camera& camera,
 
 // ── Camera overlay ────────────────────────────────────────────────────────────
 
-void Renderer::drawOverlay(const FrameSnapshot& frame) {
-    if (!frame.hasFrame) return;
+void Renderer::drawOverlay(const FrameSnapshot& frame, float scale) {
+    if (!frame.hasFrame || frame.width <= 0 || frame.height <= 0) return;
 
     const float fw = static_cast<float>(m_width);
     const float fh = static_cast<float>(m_height);
 
-    // Overlay size and position (pixels, bottom-right corner)
-    constexpr float OW = 240.f, OH = 180.f, M = 14.f;
-    float x0 = fw - OW - M, y0 = M, x1 = fw - M, y1 = M + OH;
+    // Keep the source aspect ratio, including widescreen and portrait cameras.
+    const auto rect = cameraPreviewRect(m_width, m_height, frame.width, frame.height, scale);
+    const float x0 = rect.x, y0 = rect.y, x1 = x0 + rect.width, y1 = y0 + rect.height;
 
     // Helper: pixel → NDC
     auto toNDC = [fw, fh](float px, float py) -> std::pair<float, float> {
@@ -222,11 +223,12 @@ void Renderer::drawOverlay(const FrameSnapshot& frame) {
 
     // ── Draw camera quad ──────────────────────────────────────────────────────
     // UV (0,0) = bottom-left of image (row 0 in our reversed buffer = cam bottom).
+    const float leftU = frame.mirrored ? 1.f : 0.f, rightU = 1.f - leftU;
     const float quadVerts[16] = {
-        nx0, ny0,  0.f, 0.f,   // bottom-left
-        nx1, ny0,  1.f, 0.f,   // bottom-right
-        nx0, ny1,  0.f, 1.f,   // top-left
-        nx1, ny1,  1.f, 1.f,   // top-right
+        nx0, ny0,  leftU, 0.f,
+        nx1, ny0,  rightU, 0.f,
+        nx0, ny1,  leftU, 1.f,
+        nx1, ny1,  rightU, 1.f,
     };
     glBindVertexArray(m_quadVAO);
     glBindBuffer(GL_ARRAY_BUFFER, m_quadVBO);
@@ -234,27 +236,12 @@ void Renderer::drawOverlay(const FrameSnapshot& frame) {
 
     m_overlayShader.use();
     m_overlayShader.set("uTex", 0);
+    m_overlayShader.set("uWidth", rect.width);
+    m_overlayShader.set("uHeight", rect.height);
+    m_overlayShader.set("uRadius", 12.f * scale);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_overlayTex);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-    // ── Draw a thin border around the overlay ─────────────────────────────────
-    {
-        const float bx = 1.5f / fw, by = 1.5f / fh;   // 1.5px border in NDC
-        const glm::vec3 border[8] = {
-            {nx0-bx, ny0-by, 0}, {nx1+bx, ny0-by, 0},
-            {nx1+bx, ny0-by, 0}, {nx1+bx, ny1+by, 0},
-            {nx1+bx, ny1+by, 0}, {nx0-bx, ny1+by, 0},
-            {nx0-bx, ny1+by, 0}, {nx0-bx, ny0-by, 0},
-        };
-        glBindVertexArray(m_landmarkVAO);
-        glBindBuffer(GL_ARRAY_BUFFER, m_landmarkVBO);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(border), border);
-        m_flatShader.use();
-        m_flatShader.set("uMVP",   glm::mat4(1.f));
-        m_flatShader.set("uColor", gestureColor(frame.activeGesture));
-        glDrawArrays(GL_LINES, 0, 8);
-    }
 
     // ── Draw hand skeleton ────────────────────────────────────────────────────
     if (frame.landmarksValid) {
@@ -273,8 +260,8 @@ void Renderer::drawOverlay(const FrameSnapshot& frame) {
             return frame.joints[i].x >= 0.f;
         };
         auto jndc = [&](int i) -> glm::vec3 {
-            float px = x0 + (1.f - frame.joints[i].x) * OW;
-            float py = y0 + frame.joints[i].y * OH;
+            float px = x0 + frame.joints[i].x * rect.width;
+            float py = y0 + frame.joints[i].y * rect.height;
             auto [nx, ny] = toNDC(px, py);
             return {nx, ny, 0.f};
         };

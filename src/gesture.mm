@@ -2,6 +2,7 @@
 #import <Vision/Vision.h>
 #include "gesture.h"
 #include "gesture_tracker.h"
+#include "camera_frame.h"
 #include <atomic>
 #include <mutex>
 #include <deque>
@@ -42,6 +43,15 @@ struct GestureImpl {
     AVCaptureVideoDataOutput* __strong output   = nil;
     id                        __strong delegate = nil; // CaptureDelegate*
     dispatch_queue_t                   captureQueue = nullptr;
+    dispatch_queue_t                   sessionQueue = dispatch_queue_create("polyscope.camera-session", DISPATCH_QUEUE_SERIAL);
+    std::atomic_bool desired{false}, running{false}, starting{false}, closed{false};
+    std::atomic_bool mirrored{true};
+    std::mutex statusMtx;
+    std::string statusText = "Hand controls are off";
+    void setStatus(std::string text) {
+        std::lock_guard<std::mutex> lock(statusMtx);
+        statusText = std::move(text);
+    }
 
     // ── Event queue (capture thread → main thread) ────────────────────────────
     std::mutex               evMtx;
@@ -55,6 +65,7 @@ struct GestureImpl {
     GestureEvent::Type        frameActiveGesture = GestureEvent::Type::None;
     bool                      frameLandmarksValid = false;
     bool                      hasFrame            = false;
+    bool                      frameMirrored        = true;
 
     // Only the serial capture queue touches the tracker. The main thread asks
     // it to reset through this flag when camera capture is toggled.
@@ -117,25 +128,24 @@ getJoint(VNHumanHandPoseObservation* obs, NSString* name) {
         // ── Copy camera frame ─────────────────────────────────────────────────
         // Pixel-buffer rows are top-to-bottom while our OpenGL texture data is
         // bottom-to-top, so reverse the rows during the copy.
-        CVPixelBufferLockBaseAddress(pxbuf, kCVPixelBufferLock_ReadOnly);
+        if (CVPixelBufferLockBaseAddress(pxbuf, kCVPixelBufferLock_ReadOnly) != kCVReturnSuccess) return;
         int    w   = (int)CVPixelBufferGetWidth(pxbuf);
         int    h   = (int)CVPixelBufferGetHeight(pxbuf);
         size_t bpr = CVPixelBufferGetBytesPerRow(pxbuf);
         auto*  src = (const uint8_t*)CVPixelBufferGetBaseAddress(pxbuf);
+        if (!src || w <= 0 || h <= 0 || bpr < static_cast<size_t>(w) * 4) {
+            CVPixelBufferUnlockBaseAddress(pxbuf, kCVPixelBufferLock_ReadOnly);
+            return;
+        }
 
-        std::vector<uint8_t> pixels((size_t)w * h * 4);
-        for (int y = 0; y < h; ++y)
-            std::memcpy(pixels.data() + (size_t)(h - 1 - y) * w * 4,
-                        src + (size_t)y * bpr, (size_t)w * 4);
+        auto pixels = cameraPixelsForTexture(src, w, h, bpr);
         CVPixelBufferUnlockBaseAddress(pxbuf, kCVPixelBufferLock_ReadOnly);
 
-        // ── Run Vision hand-pose detection ────────────────────────────────────
-        // kCGImagePropertyOrientationUpMirrored: corrects front-camera mirroring
-        // so landmark x=0 is the left side of the displayed mirror image.
+        // Vision sees the same upright, unmirrored source as the texture.
+        // Both preview pixels and landmarks are mirrored once for selfie mode.
+        const bool mirrored = self.impl->mirrored.load();
         VNImageRequestHandler* rh = [[VNImageRequestHandler alloc]
-            initWithCVPixelBuffer:pxbuf
-                      orientation:kCGImagePropertyOrientationUpMirrored
-                          options:@{}];
+            initWithCVPixelBuffer:pxbuf orientation:kCGImagePropertyOrientationUp options:@{}];
         NSError* err = nil;
         [rh performRequests:@[self.req] error:&err];
 
@@ -160,6 +170,7 @@ getJoint(VNHumanHandPoseObservation* obs, NSString* name) {
             landmarksValid = validJointCount >= 6;
         }
 
+        joints = cameraJointsForPreview(joints, mirrored);
         const GestureTrackingResult tracking = self.impl->tracker.update(joints);
 
         // ── Publish frame + event ─────────────────────────────────────────────
@@ -172,6 +183,7 @@ getJoint(VNHumanHandPoseObservation* obs, NSString* name) {
             self.impl->frameActiveGesture = tracking.activeGesture;
             self.impl->frameLandmarksValid = landmarksValid;
             self.impl->hasFrame           = true;
+            self.impl->frameMirrored       = mirrored;
         }
         self.impl->pushEvent(tracking.event);
     }
@@ -180,77 +192,158 @@ getJoint(VNHumanHandPoseObservation* obs, NSString* name) {
 
 // ── GestureSource ─────────────────────────────────────────────────────────────
 
-GestureSource::GestureSource() : m_impl(new GestureImpl) {
-    AVCaptureDevice* cam =
-        [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
-    if (!cam) {
-        NSLog(@"[gesture] No camera found — gesture control disabled");
-        return;
-    }
+namespace {
 
-    NSError* err = nil;
-    AVCaptureDeviceInput* input =
-        [AVCaptureDeviceInput deviceInputWithDevice:cam error:&err];
-    if (!input) {
-        NSLog(@"[gesture] Camera input error: %@ — disabled", err);
-        return;
-    }
-
-    CaptureDelegate* del = [[CaptureDelegate alloc] initWithImpl:m_impl];
-    m_impl->delegate = del;
-
-    m_impl->output = [[AVCaptureVideoDataOutput alloc] init];
-    m_impl->output.videoSettings = @{
-        (NSString*)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA)
-    };
-    m_impl->output.alwaysDiscardsLateVideoFrames = YES;
-    m_impl->captureQueue =
-        dispatch_queue_create("polyscope.gesture", DISPATCH_QUEUE_SERIAL);
-    [m_impl->output setSampleBufferDelegate:del queue:m_impl->captureQueue];
-
-    m_impl->session = [[AVCaptureSession alloc] init];
-    m_impl->session.sessionPreset = AVCaptureSessionPreset640x480;
-    if ([m_impl->session canAddInput:input])  [m_impl->session addInput:input];
-    if ([m_impl->session canAddOutput:m_impl->output])
-        [m_impl->session addOutput:m_impl->output];
-    [m_impl->session startRunning];
-
-    NSLog(@"[gesture] Camera session started");
+void startCapture(std::shared_ptr<GestureImpl> impl) {
+    dispatch_async(impl->sessionQueue, ^{
+        @autoreleasepool {
+            if (impl->closed || !impl->desired) { impl->starting = false; return; }
+            if (!impl->session) {
+                AVCaptureDevice* camera = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
+                if (!camera) {
+                    impl->setStatus("No camera is available. Connect a camera and try again.");
+                    impl->starting = false;
+                    return;
+                }
+                NSError* error = nil;
+                AVCaptureDeviceInput* input = [AVCaptureDeviceInput deviceInputWithDevice:camera error:&error];
+                if (!input) {
+                    impl->setStatus(error.localizedDescription.UTF8String ?: "Cannot open the camera.");
+                    impl->starting = false;
+                    return;
+                }
+                AVCaptureSession* session = [[AVCaptureSession alloc] init];
+                AVCaptureVideoDataOutput* output = [[AVCaptureVideoDataOutput alloc] init];
+                output.videoSettings = @{(NSString*)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA)};
+                output.alwaysDiscardsLateVideoFrames = YES;
+                if (![session canAddInput:input] || ![session canAddOutput:output]) {
+                    impl->setStatus("This camera does not support video capture.");
+                    impl->starting = false;
+                    return;
+                }
+                [session beginConfiguration];
+                [session addInput:input];
+                [session addOutput:output];
+                if ([session canSetSessionPreset:AVCaptureSessionPreset1280x720])
+                    session.sessionPreset = AVCaptureSessionPreset1280x720;
+                else if ([session canSetSessionPreset:AVCaptureSessionPreset640x480])
+                    session.sessionPreset = AVCaptureSessionPreset640x480;
+                AVCaptureConnection* connection = [output connectionWithMediaType:AVMediaTypeVideo];
+                if (connection.isVideoMirroringSupported) {
+                    connection.automaticallyAdjustsVideoMirroring = NO;
+                    connection.videoMirrored = NO;
+                }
+                [session commitConfiguration];
+                impl->captureQueue = dispatch_queue_create("polyscope.gesture", DISPATCH_QUEUE_SERIAL);
+                CaptureDelegate* delegate = [[CaptureDelegate alloc] initWithImpl:impl.get()];
+                [output setSampleBufferDelegate:delegate queue:impl->captureQueue];
+                impl->delegate = delegate;
+                impl->session = session;
+                impl->output = output;
+            }
+            [impl->session startRunning]; // never block AppKit's main thread
+            impl->running = impl->session.isRunning;
+            impl->setStatus(impl->running ? "Hand controls on" : "The camera could not start. It may be in use by another app.");
+            impl->starting = false;
+        }
+    });
 }
 
+} // namespace
+
+GestureSource::GestureSource() : m_impl(std::make_shared<GestureImpl>()) {}
+
 GestureSource::~GestureSource() {
-    if (m_impl->session) [m_impl->session stopRunning];
-    [m_impl->output setSampleBufferDelegate:nil queue:nullptr];
-    // Drain a callback already executing before freeing the C++ state it uses.
-    if (m_impl->captureQueue)
-        dispatch_sync(m_impl->captureQueue, ^{});
-    m_impl->delegate = nil;
-    delete m_impl;
+    auto impl = m_impl;
+    impl->closed = true;
+    impl->desired = false;
+    // A permission completion can outlive the viewer. Its shared state remains
+    // valid, but closed prevents it from starting capture after shutdown.
+    dispatch_sync(impl->sessionQueue, ^{
+        @autoreleasepool {
+            [impl->session stopRunning];
+            [impl->output setSampleBufferDelegate:nil queue:nullptr];
+            if (impl->captureQueue) dispatch_sync(impl->captureQueue, ^{});
+            impl->delegate = nil;
+        }
+    });
 }
 
 GestureEvent GestureSource::poll() { return m_impl->popEvent(); }
 
 FrameSnapshot GestureSource::getFrame() {
-    std::lock_guard<std::mutex> lk(m_impl->frameMtx);
-    FrameSnapshot s;
-    if (!m_impl->hasFrame) return s;
-    s.bgra           = m_impl->framePixels;   // vector copy (~1.2 MB at 640x480)
-    s.width          = m_impl->frameW;
-    s.height         = m_impl->frameH;
-    s.joints         = m_impl->frameJoints;
-    s.activeGesture  = m_impl->frameActiveGesture;
-    s.landmarksValid = m_impl->frameLandmarksValid;
-    s.hasFrame       = true;
-    return s;
+    if (!m_impl->running) return {};
+    std::lock_guard<std::mutex> lock(m_impl->frameMtx);
+    FrameSnapshot snapshot;
+    if (!m_impl->hasFrame) return snapshot;
+    snapshot.bgra = m_impl->framePixels;
+    snapshot.width = m_impl->frameW;
+    snapshot.height = m_impl->frameH;
+    snapshot.joints = m_impl->frameJoints;
+    snapshot.activeGesture = m_impl->frameActiveGesture;
+    snapshot.landmarksValid = m_impl->frameLandmarksValid;
+    snapshot.hasFrame = true;
+    snapshot.mirrored = m_impl->frameMirrored;
+    return snapshot;
+}
+
+void GestureSource::resetTracking() {
+    m_impl->resetRequested = true;
+    std::lock_guard<std::mutex> lock(m_impl->evMtx);
+    m_impl->evQueue.clear();
 }
 
 void GestureSource::setActive(bool on) {
-    if (!m_impl->session) return;
-    m_impl->resetRequested = true;
-    if (on)  [m_impl->session startRunning];
-    else     [m_impl->session stopRunning];
+    @autoreleasepool {
+        auto impl = m_impl;
+        impl->desired = on;
+        resetTracking();
+        if (!on) {
+            impl->running = false;
+            impl->starting = false;
+            impl->setStatus("Hand controls are off");
+            dispatch_async(impl->sessionQueue, ^{
+                @autoreleasepool {
+                    [impl->session stopRunning];
+                    if (impl->captureQueue) dispatch_sync(impl->captureQueue, ^{});
+                    std::lock_guard<std::mutex> lock(impl->frameMtx);
+                    impl->hasFrame = false;
+                }
+            });
+            return;
+        }
+        impl->starting = true;
+        const AVAuthorizationStatus authorization = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
+        if (authorization == AVAuthorizationStatusDenied || authorization == AVAuthorizationStatusRestricted) {
+            impl->setStatus("Camera access is disabled. Allow Polyscope in System Settings → Privacy & Security → Camera, then try again.");
+            impl->starting = false;
+        } else if (authorization == AVAuthorizationStatusNotDetermined) {
+            impl->setStatus("Waiting for camera permission…");
+            [AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo completionHandler:^(BOOL granted) {
+                if (granted) startCapture(impl);
+                else {
+                    impl->setStatus("Camera access was declined. You can enable it in System Settings → Privacy & Security → Camera.");
+                    impl->starting = false;
+                }
+            }];
+        } else {
+            impl->setStatus("Starting camera…");
+            startCapture(impl);
+        }
+    }
 }
 
-bool GestureSource::isRunning() const {
-    return m_impl->session && [m_impl->session isRunning];
+void GestureSource::setMirrored(bool mirrored) {
+    m_impl->mirrored = mirrored;
+    resetTracking();
+}
+
+bool GestureSource::isRunning() const { return m_impl->running; }
+bool GestureSource::isStarting() const { return m_impl->starting; }
+bool GestureSource::hasCameraAccess() {
+    return [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo] == AVAuthorizationStatusAuthorized;
+}
+std::string GestureSource::status() const {
+    std::lock_guard<std::mutex> lock(m_impl->statusMtx);
+    return m_impl->statusText;
 }

@@ -23,7 +23,7 @@ public:
 
     // Draw the camera preview + hand skeleton in the bottom-right corner.
     // Call after render() and before glfwSwapBuffers().
-    void drawOverlay(const FrameSnapshot& frame);
+    void drawOverlay(const FrameSnapshot& frame, float scale = 1.f);
 
 private:
     int m_width  = 1280;

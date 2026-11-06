@@ -3,6 +3,8 @@
 #include <array>
 #include <vector>
 #include <cstdint>
+#include <memory>
+#include <string>
 
 // Gesture classification emitted once per detected frame.
 struct GestureEvent {
@@ -15,8 +17,9 @@ struct GestureEvent {
 
 // 21-joint snapshot from Vision, plus the raw camera pixels for the preview.
 // Joint index layout: 0=wrist, 1-4=thumb (CMC→tip), 5-8=index, 9-12=middle,
-// 13-16=ring, 17-20=little.  Position is Vision-normalised [0,1] origin
-// bottom-left; invalid joints have position (-1,-1).
+// 13-16=ring, 17-20=little. Positions are in preview coordinates, normalised
+// [0,1] with a bottom-left origin, including the selected mirroring. Invalid
+// joints have position (-1,-1).
 struct FrameSnapshot {
     std::vector<uint8_t>      bgra;            // BGRA pixels, width*height*4,
                                                // row 0 = bottom of image (GL convention)
@@ -26,6 +29,7 @@ struct FrameSnapshot {
     GestureEvent::Type        activeGesture = GestureEvent::Type::None;
     bool                      landmarksValid = false;
     bool                      hasFrame       = false;
+    bool                      mirrored       = true;
 };
 
 // Forward-declared at file scope so Objective-C++ code in gesture.mm can
@@ -49,9 +53,14 @@ public:
     GestureEvent  poll();        // drain one event; call once per frame
     FrameSnapshot getFrame();    // thread-safe copy of latest pixels + landmarks
 
-    void setActive(bool on);     // start / stop the AVCaptureSession
+    void setActive(bool on);     // capture is off until explicitly enabled
+    void setMirrored(bool mirrored);
+    void resetTracking();
+    bool isStarting() const;
+    std::string status() const;
+    static bool hasCameraAccess();
     bool isRunning() const;      // true when session is running
 
 private:
-    GestureImpl* m_impl = nullptr;
+    std::shared_ptr<GestureImpl> m_impl;
 };

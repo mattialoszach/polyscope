@@ -77,6 +77,7 @@ add_executable(polyscope MACOSX_BUNDLE
     src/camera.cpp
     src/renderer.cpp
     src/gesture_tracker.cpp
+    src/camera_frame.cpp
     src/gesture.mm
     src/platform.mm
 )
@@ -150,6 +151,11 @@ install(TARGETS polyscope BUNDLE DESTINATION . COMPONENT Polyscope)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(camera_frame_tests tests/camera_frame_tests.cpp src/camera_frame.cpp)
+    target_include_directories(camera_frame_tests PRIVATE src)
+    target_link_libraries(camera_frame_tests PRIVATE glm::glm)
+    add_test(NAME camera_frame COMMAND camera_frame_tests)
+
     add_test(NAME macos_bundle
         COMMAND ${CMAKE_COMMAND}
             "-DAPP_BUNDLE=$<TARGET_BUNDLE_DIR:polyscope>"
