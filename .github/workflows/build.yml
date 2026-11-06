@@ -1,0 +1,41 @@
+name: macOS build
+
+on:
+  push:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build, validate the app bundle, and run tests
+        run: make test
+      - name: Build the optional documentation renderer
+        run: |
+          cmake -S . -B build -DPOLYSCOPE_BUILD_DEMOS=ON
+          cmake --build build --target polyscope_demos --parallel

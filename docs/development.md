@@ -54,3 +54,7 @@ or renderer changes, also run the built app's `--ui-smoke-test` and
 `--camera-smoke-test` check uses a live camera if permission is already granted.
 Keep generated files in a build directory and commit the source assets needed
 to rebuild the bundle.
+
+GitHub Actions builds and runs the automated suite on Apple Silicon and Intel
+macOS runners. It also compiles the documentation tool; live camera tests stay
+local.
