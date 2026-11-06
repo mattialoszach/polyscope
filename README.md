@@ -1,6 +1,6 @@
 # Polyscope
 
-<img src="assets/AppIcon.png" alt="Polyscope icon" width="128">
+<img src="assets/icons/AppIcon.png" alt="Polyscope icon" width="128">
 
 A small 3D model viewer for macOS, written in C++ and OpenGL. Open models in tabs,
 inspect them with a mouse or trackpad, or turn on hand controls through Apple Vision.
@@ -13,12 +13,12 @@ are imported; materials, textures, and animations aren't rendered yet.
 
 SO101 parts open in separate tabs, ready to inspect with a mouse or trackpad.
 
-![SO101 follower parts open in Polyscope, with two model tabs](assets/demos/model-tabs.webp)
+![SO101 follower parts open in Polyscope, with two model tabs](docs/demos/model-tabs.webp)
 
 Hand controls add a small preview with tracked hand landmarks. This demo uses a
-[sample hand photo](assets/demos/README.md); no webcam capture is included.
+[sample hand photo](docs/demos/README.md); no webcam capture is included.
 
-![SO101 wrist camera mount with an open-palm hand-control preview](assets/demos/hand-controls.webp)
+![SO101 wrist camera mount with an open-palm hand-control preview](docs/demos/hand-controls.webp)
 
 ## Build and install
 
@@ -101,6 +101,9 @@ Settings lets you change preview mirroring or hide the preview while keeping
 hand controls active. Turning hand controls off stops camera capture.
 
 ## Development
+
+See the [development guide](docs/development.md) for the project layout and build
+targets. The usual commands are:
 
 ```bash
 make build    # build/Polyscope.app

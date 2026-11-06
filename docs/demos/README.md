@@ -25,15 +25,16 @@ STLs. The `dwebp` and `cwebp` tools are part of WebP (`brew install webp`).
 cmake -S . -B build -DPOLYSCOPE_BUILD_DEMOS=ON
 cmake --build build --target polyscope_demos --parallel
 mkdir -p build/demos
-dwebp assets/demos/hand-sample.webp -o build/demos/hand.png
+dwebp docs/demos/hand-sample.webp -o build/demos/hand.png
 build/PolyscopeDemos.app/Contents/MacOS/PolyscopeDemos \
   build/demos build/demos/hand.png \
   /path/to/Prusa_Follower_SO101.stl \
   /path/to/Wrist_Cam_Mount_32x32_UVC_Module_SO101.stl
-cwebp -lossless -z 9 -exact build/demos/model-tabs.png -o assets/demos/model-tabs.webp
-cwebp -lossless -z 9 -exact build/demos/hand-controls.png -o assets/demos/hand-controls.webp
+cwebp -lossless -z 9 -exact build/demos/model-tabs.png -o docs/demos/model-tabs.webp
+cwebp -lossless -z 9 -exact build/demos/hand-controls.png -o docs/demos/hand-controls.webp
 ```
 
-The exporter lives outside the installed app and renders only its own hidden
-window. It does not change Polyscope's saved preferences. The final snapshots
+The exporter in `tools/render-demos.mm` lives outside the installed app and
+renders only its own hidden window. It does not change Polyscope's saved
+preferences. The final snapshots
 use lossless WebP to keep labels and model edges sharp.

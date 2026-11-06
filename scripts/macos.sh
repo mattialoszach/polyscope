@@ -112,7 +112,7 @@ case "${1:-help}" in
     icon)
         require_tools
         mkdir -p "$BUILD_DIR/swift-cache"
-        CLANG_MODULE_CACHE_PATH="$BUILD_DIR/swift-cache" swift -module-cache-path "$BUILD_DIR/swift-cache" "$PROJECT_ROOT/scripts/generate-icon.swift" "$PROJECT_ROOT/assets"
+        CLANG_MODULE_CACHE_PATH="$BUILD_DIR/swift-cache" swift -module-cache-path "$BUILD_DIR/swift-cache" "$PROJECT_ROOT/scripts/generate-icon.swift" "$PROJECT_ROOT/assets/icons"
         ;;
     help)
         cat <<'HELP'

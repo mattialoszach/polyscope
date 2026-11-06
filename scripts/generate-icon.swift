@@ -2,7 +2,7 @@
 // Editable vector artwork, rendered with AppKit. No image libraries required.
 import AppKit
 
-let output = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? "assets", isDirectory: true)
+let output = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? "assets/icons", isDirectory: true)
 let manager = FileManager.default
 try manager.createDirectory(at: output, withIntermediateDirectories: true)
 let temporary = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
