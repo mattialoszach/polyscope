@@ -127,7 +127,8 @@ void Renderer::drawGrid(const Camera& camera) {
 
     m_flatShader.use();
     m_flatShader.set("uMVP",   mvp);
-    m_flatShader.set("uColor", glm::vec4(0.35f, 0.35f, 0.38f, 1.0f));
+    m_flatShader.set("uColor", m_dark ? glm::vec4(.23f, .24f, .27f, 1.f)
+                                    : glm::vec4(.82f, .83f, .85f, 1.f));
 
     glBindVertexArray(m_gridVAO);
     glDrawArrays(GL_LINES, 0, m_gridLineVerts);
@@ -138,8 +139,8 @@ void Renderer::drawGrid(const Camera& camera) {
 
 void Renderer::render(const Mesh& mesh, const Camera& camera,
                       bool showGrid, bool wireframe) {
-    // Background: dark charcoal
-    glClearColor(0.11f, 0.11f, 0.13f, 1.f);
+    if (m_dark) glClearColor(.10f, .11f, .13f, 1.f);
+    else glClearColor(.95f, .955f, .965f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     if (showGrid) drawGrid(camera);

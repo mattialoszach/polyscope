@@ -6,6 +6,8 @@ Mesh::Mesh(const std::string& path) {
     upload(loadModelVertices(path));
 }
 
+Mesh::Mesh(const std::vector<Vertex>& vertices) { upload(vertices); }
+
 void Mesh::upload(const std::vector<Vertex>& verts) {
     m_vertexCount = static_cast<GLsizei>(verts.size());
 

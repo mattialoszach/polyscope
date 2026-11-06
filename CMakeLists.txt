@@ -151,6 +151,11 @@ install(TARGETS polyscope BUNDLE DESTINATION . COMPONENT Polyscope)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(workspace_tests tests/workspace_tests.cpp src/camera.cpp)
+    target_include_directories(workspace_tests PRIVATE src)
+    target_link_libraries(workspace_tests PRIVATE glm::glm)
+    add_test(NAME workspace COMMAND workspace_tests)
+
     add_executable(camera_frame_tests tests/camera_frame_tests.cpp src/camera_frame.cpp)
     target_include_directories(camera_frame_tests PRIVATE src)
     target_link_libraries(camera_frame_tests PRIVATE glm::glm)

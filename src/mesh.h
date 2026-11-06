@@ -8,6 +8,7 @@
 class Mesh {
 public:
     explicit Mesh(const std::string& path);
+    explicit Mesh(const std::vector<Vertex>& vertices);
     ~Mesh();
 
     Mesh(const Mesh&)            = delete;

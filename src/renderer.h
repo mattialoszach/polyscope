@@ -16,6 +16,7 @@ public:
     Renderer& operator=(const Renderer&) = delete;
 
     void resize(int width, int height);
+    void setDarkAppearance(bool dark) { m_dark = dark; }
 
     // Draw the 3D scene
     void render(const Mesh& mesh, const Camera& camera,
@@ -28,6 +29,7 @@ public:
 private:
     int m_width  = 1280;
     int m_height = 800;
+    bool m_dark = false;
 
     // ── 3D scene shaders ──────────────────────────────────────────────────────
     Shader m_modelShader { resourcePath("shaders/model.vert"), resourcePath("shaders/model.frag") };

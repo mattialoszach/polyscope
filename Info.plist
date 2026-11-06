@@ -25,6 +25,23 @@
     <string>${CMAKE_OSX_DEPLOYMENT_TARGET}</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.graphics-design</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>3D Model</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>3mf</string><string>dae</string><string>fbx</string>
+                <string>glb</string><string>gltf</string><string>obj</string>
+                <string>ply</string><string>stl</string>
+            </array>
+        </dict>
+    </array>
     <key>NSCameraUsageDescription</key>
     <string>Hand gesture control for 3D model navigation</string>
     <key>NSHighResolutionCapable</key>
