@@ -1,150 +1,125 @@
 # Polyscope
 
-<img src="assets/AppIcon.png" alt="Polyscope app icon: a mint and cyan cube on a dark rounded tile" width="160">
+<img src="assets/AppIcon.png" alt="Polyscope icon" width="128">
 
-A small 3D model viewer for macOS, written in C++ and OpenGL. Load a model and
-inspect it with a mouse or hand gestures.
+A small 3D model viewer for macOS, written in C++ and OpenGL. Open models in tabs,
+inspect them with a mouse or trackpad, or turn on hand controls through Apple Vision.
+The interface follows the system's light or dark appearance.
 
-## Features
+Supports **3MF, STL, OBJ, PLY, glTF/GLB, FBX, and Collada**. Geometry and normals
+are imported; materials, textures, and animations aren't rendered yet.
 
-- 3MF, STL, OBJ, PLY, glTF/GLB, FBX, and Collada model loading
-- Orbit, pan and zoom controls
-- Shaded and wireframe views with an optional ground grid
-- Drag-and-drop model loading
-- Native macOS file picker with `⌘O`
-- Hand controls powered by Apple Vision
+## Demos
+
+SO101 parts open in separate tabs, ready to inspect with a mouse or trackpad.
+
+![SO101 follower parts open in Polyscope, with two model tabs](assets/demos/model-tabs.webp)
+
+Hand controls add a small preview with tracked hand landmarks. This demo uses a
+[sample hand photo](assets/demos/README.md); no webcam capture is included.
+
+![SO101 wrist camera mount with an open-palm hand-control preview](assets/demos/hand-controls.webp)
 
 ## Build and install
 
-You need macOS 11 or newer, CMake 3.24+, and the Xcode Command Line Tools.
-Install Apple's tools once if you do not have Xcode:
+Requires macOS 11+, CMake 3.24+, and Xcode or its Command Line Tools. If needed,
+install the tools with `xcode-select --install`, then run from the project folder:
 
 ```bash
-xcode-select --install
+make setup    # check tools; install CMake through Homebrew if needed
+make install  # build and install /Applications/Polyscope.app
 ```
 
-Then, from this checkout:
+Without Homebrew, install [CMake](https://cmake.org/download/) and add it to your
+`PATH`. GLFW, GLM, and Assimp download on the first build. The app includes its
+resources and dependencies, so it runs without the source folder.
 
-```bash
-make setup    # checks tools; installs CMake through Homebrew if needed
-make install  # builds and installs /Applications/Polyscope.app
-```
-
-If Homebrew is unavailable, install [CMake](https://cmake.org/download/) and make
-sure `cmake` is on your `PATH`. GLFW, GLM, and Assimp download automatically on
-the first build. Later builds reuse them. The app contains its shaders, sample
-model, icon, and statically linked dependencies, so it runs independently of the
-checkout. Builds target the current Mac's architecture.
-
-Launch **Polyscope** from Applications or Spotlight. You can also run:
-
-```bash
-open /Applications/Polyscope.app
-```
-
-To install in your own Applications folder:
+Launch **Polyscope** from Applications or Spotlight. To install in your own
+Applications folder instead:
 
 ```bash
 make install APPLICATIONS_DIR="$HOME/Applications"
 ```
 
-Quit Polyscope before replacing an installed version. Installation validates a
-staged copy before replacing the existing app. If `/Applications` is not writable,
-use the per-user command above; building does not require `sudo`.
-
-## Update
-
-From this checkout:
+Quit the app before installing or updating. To pull the latest changes, rebuild,
+and replace the installed app:
 
 ```bash
 make update
 ```
 
-This runs `git pull --ff-only` on the current branch, rebuilds, and replaces
-`/Applications/Polyscope.app`. It requires a clean checkout and a branch with a
-Git upstream. Commit or stash changes first. To rebuild and install your local
-changes without pulling, use `make install`. For a per-user installation, pass
-`APPLICATIONS_DIR="$HOME/Applications"` to `make update` too.
+Updates use `git pull --ff-only` and require a clean checkout with an upstream
+branch. Use `make install` to install local edits without pulling. For a per-user
+installation, pass the same `APPLICATIONS_DIR` option when updating.
 
-## Build or run without installing
+## Using Polyscope
 
-```bash
-make build    # build/Polyscope.app
-make run      # build and launch the bundled sample
-```
+The viewer starts with a cube. Drop one or more models onto the window, or choose
+**Open** (`⌘O`). Each file opens in a closable tab and replaces the starter cube.
+Drop more files at any time; reopening a file selects its existing tab. Each tab
+keeps its own view position. Closing the last tab brings back the cube.
 
-To open a particular model file:
+Models load in the background. Files that can't be opened leave existing tabs
+intact. You can also use Finder's **Open With** or drop files onto the app icon.
 
-```bash
-open /Applications/Polyscope.app --args /absolute/path/to/model.3mf
-```
+The toolbar has Open, Reset View, Hand Controls, and Help. Grid and wireframe
+options are in **View**; preview preferences are in **Polyscope → Settings…**.
 
-Press `⌘O` to choose a model, or drag any supported file onto the running viewer.
-The viewer imports geometry and normals; model materials, textures, cameras, and
-animations are not rendered yet.
-
-The underlying CMake commands remain available:
-
-```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel
-cmake --install build --prefix /Applications --component Polyscope
-```
-
-The app is signed locally with an ad hoc signature. Distribution to other Macs
-with a Developer ID and notarization is a separate release step.
-
-## App icon
-
-The icon uses a simple three-plane cyan cube on a dark rounded tile. The
-1024px preview and full-resolution `.icns` are checked in, so a regular build
-needs no icon tools. Edit `scripts/generate-icon.swift` and run `make icon` to
-regenerate all standard and Retina sizes using AppKit and `iconutil`.
-
-## Mouse and keyboard
+## Controls
 
 | Input | Action |
-|-------|--------|
-| Left-drag | Orbit |
-| Right-drag | Pan |
-| Scroll | Zoom |
-| `⌘O` | Open a model |
-| `R` | Reset the camera |
-| `G` | Show or hide the grid |
-| `W` | Toggle wireframe mode |
-| `C` | Turn hand controls on or off |
-| `Esc` | Quit |
+| --- | --- |
+| Drag | Orbit |
+| Right-drag or `⇧`-drag | Pan |
+| Scroll or trackpad pinch | Zoom |
+| `⌘O` / `⌘W` | Open models / close the current tab |
+| `⌃Tab` / `⌃⇧Tab` | Next / previous tab |
+| `⌘0` or `R` | Reset view |
+| `G` / `W` | Toggle grid / wireframe |
+| `C` | Toggle hand controls |
+| `⌘,` / `⌘?` | Settings / Help |
+| `⌘Q` | Quit |
+
+On the starter screen, `⌘W` closes the window.
 
 ## Hand controls
 
-Hand controls start automatically. Keep one hand fully visible in the preview;
-the window title shows which gesture is active.
+The camera is **off at every launch**. Click the camera button or press `C` to
+enable hand controls. macOS asks for permission when needed; if access is blocked,
+allow Polyscope in the system's camera privacy settings.
 
 | Gesture | Action |
-|---------|--------|
-| Open palm, then move your hand | Orbit |
-| Peace sign, then move your hand | Pan |
-| Pinch thumb and index finger, then move closer to the camera | Zoom in |
-| Keep pinching and move away from the camera | Zoom out |
-| Closed fist or one raised finger | Pause and reposition |
+| --- | --- |
+| Open palm, then move | Orbit |
+| Peace sign, then move | Pan |
+| Pinch, then move closer or farther | Zoom in or out |
+| Fist or one raised finger | Pause and reposition |
 
-Hold a pose briefly until it is recognised before moving. For a long orbit or
-pan, make the idle pose, move your hand back to a comfortable position, then
-resume the gesture. This works like lifting and repositioning a mouse.
+Keep your palm facing the camera and hold a pose briefly before moving. To
+reposition your hand, pause, move back to a comfortable spot, then resume.
+Settings lets you change preview mirroring or hide the preview while keeping
+hand controls active. Turning hand controls off stops camera capture.
 
-For steadier tracking, face your palm toward the camera and avoid letting your
-hand leave the preview. On first launch, macOS will ask for camera permission.
-
-## Tests
+## Development
 
 ```bash
-make test
+make build    # build/Polyscope.app
+make run      # build and launch
+make test     # model, tab, gesture, camera-frame, and bundle tests
+make icon     # rebuild the icon from scripts/generate-icon.swift
 ```
 
-Tests cover gesture tracking, model import, and running a relocated bundle from
-a path with spaces. The bundle check also rejects non-system dynamic libraries.
-For a quick rendering check without opening the camera:
+Additional checks use the built executable:
 
 ```bash
 build/Polyscope.app/Contents/MacOS/Polyscope --smoke-test
+build/Polyscope.app/Contents/MacOS/Polyscope --ui-smoke-test
+build/Polyscope.app/Contents/MacOS/Polyscope --camera-smoke-test
 ```
+
+These check rendering, the native interface and file-loading workflow, and live
+camera capture respectively. The camera check stops after one frame and skips
+capture if permission hasn't already been granted.
+
+Builds target the current Mac's architecture and use an ad hoc code signature.
+Developer ID signing and notarization aren't configured.

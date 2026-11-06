@@ -205,3 +205,21 @@ if(BUILD_TESTING)
     target_link_libraries(model_loader_tests PRIVATE glm::glm assimp::assimp)
     add_test(NAME model_loader COMMAND model_loader_tests)
 endif()
+
+# Optional documentation renderer. It uses the real UI and renderer with a still
+# hand image; it never opens a camera or captures the desktop.
+option(POLYSCOPE_BUILD_DEMOS "Enable the documentation snapshot target" OFF)
+if(POLYSCOPE_BUILD_DEMOS)
+    get_target_property(POLYSCOPE_DEMO_SOURCES polyscope SOURCES)
+    list(REMOVE_ITEM POLYSCOPE_DEMO_SOURCES src/main.cpp)
+    add_executable(polyscope_demos EXCLUDE_FROM_ALL MACOSX_BUNDLE
+        scripts/render-demos.mm ${POLYSCOPE_DEMO_SOURCES})
+    set_source_files_properties(scripts/render-demos.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    target_include_directories(polyscope_demos PRIVATE src)
+    get_target_property(POLYSCOPE_DEMO_LIBRARIES polyscope LINK_LIBRARIES)
+    target_link_libraries(polyscope_demos PRIVATE ${POLYSCOPE_DEMO_LIBRARIES})
+    target_compile_definitions(polyscope_demos PRIVATE GL_SILENCE_DEPRECATION)
+    set_target_properties(polyscope_demos PROPERTIES
+        OUTPUT_NAME "PolyscopeDemos"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.polyscope.demos")
+endif()
