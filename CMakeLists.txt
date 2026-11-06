@@ -1,15 +1,23 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.24)
 
 # Vision hand-pose API requires macOS 11 (Big Sur)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS deployment target" FORCE)
 
-project(polyscope LANGUAGES CXX OBJCXX)
+project(polyscope VERSION 1.0.0 LANGUAGES CXX OBJCXX)
+
+if(NOT APPLE)
+    message(FATAL_ERROR "Polyscope requires macOS 11 or newer.")
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(FetchContent)
+
+# A movable app must not depend on libraries in the build tree or Homebrew.
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build dependencies statically" FORCE)
+set(GLFW_LIBRARY_TYPE STATIC CACHE STRING "Build GLFW statically" FORCE)
 
 # ── GLFW ─────────────────────────────────────────────────────────────────────
 FetchContent_Declare(
@@ -70,22 +78,38 @@ add_executable(polyscope MACOSX_BUNDLE
     src/renderer.cpp
     src/gesture_tracker.cpp
     src/gesture.mm
+    src/platform.mm
 )
 
 # gesture.mm creates Objective-C framework objects for every camera frame.
 # Compile it with ARC so those short-lived Vision/AVFoundation objects are
 # released at the end of the callback's autorelease pool.
-set_source_files_properties(src/gesture.mm PROPERTIES
+set_source_files_properties(src/gesture.mm src/platform.mm PROPERTIES
     COMPILE_OPTIONS "-fobjc-arc"
 )
 
 target_include_directories(polyscope PRIVATE src)
 
-# Embed the source-tree paths for shaders and assets so the binary always
-# finds them regardless of the working directory.
-target_compile_definitions(polyscope PRIVATE
-    SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders"
-    ASSET_DIR="${CMAKE_SOURCE_DIR}/assets"
+# Package runtime data with the executable; no checkout paths are compiled in.
+set(POLYSCOPE_SHADERS
+    shaders/model.vert shaders/model.frag
+    shaders/flat.vert shaders/flat.frag
+    shaders/overlay.vert shaders/overlay.frag
+)
+set_source_files_properties(${POLYSCOPE_SHADERS} PROPERTIES
+    MACOSX_PACKAGE_LOCATION "Resources/shaders"
+)
+set_source_files_properties(assets/sample.obj PROPERTIES
+    # .obj is also an object-file extension; this is Wavefront model data.
+    HEADER_FILE_ONLY TRUE
+    EXTERNAL_OBJECT FALSE
+    MACOSX_PACKAGE_LOCATION "Resources/assets"
+)
+set_source_files_properties(assets/AppIcon.icns PROPERTIES
+    MACOSX_PACKAGE_LOCATION "Resources"
+)
+target_sources(polyscope PRIVATE
+    ${POLYSCOPE_SHADERS} assets/sample.obj assets/AppIcon.icns
 )
 
 target_link_libraries(polyscope PRIVATE glfw glm::glm assimp::assimp)
@@ -97,20 +121,41 @@ if(APPLE)
         "-framework Vision"
         "-framework CoreVideo"
         "-framework CoreMedia"
+        "-framework AppKit"
     )
     target_compile_definitions(polyscope PRIVATE GL_SILENCE_DEPRECATION)
 
     set_target_properties(polyscope PROPERTIES
+        OUTPUT_NAME "Polyscope"
         MACOSX_BUNDLE_GUI_IDENTIFIER    "com.polyscope.viewer"
         MACOSX_BUNDLE_BUNDLE_NAME       "Polyscope"
-        MACOSX_BUNDLE_BUNDLE_VERSION    "1.0"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+        MACOSX_BUNDLE_BUNDLE_VERSION    "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_ICON_FILE         "AppIcon.icns"
         MACOSX_BUNDLE_INFO_PLIST        "${CMAKE_SOURCE_DIR}/Info.plist"
+        XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "-"
     )
 endif()
 
+# Re-sign after resource-only changes too, which do not necessarily relink.
+add_custom_target(polyscope_sign ALL
+    COMMAND /usr/bin/codesign --force --sign - "$<TARGET_BUNDLE_DIR:polyscope>"
+    DEPENDS polyscope
+    COMMENT "Signing Polyscope for local use"
+    VERBATIM
+)
+
+# Only the app is installed, never dependency headers or libraries.
+install(TARGETS polyscope BUNDLE DESTINATION . COMPONENT Polyscope)
+
 include(CTest)
 if(BUILD_TESTING)
+    add_test(NAME macos_bundle
+        COMMAND ${CMAKE_COMMAND}
+            "-DAPP_BUNDLE=$<TARGET_BUNDLE_DIR:polyscope>"
+            "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/bundle-test"
+            -P "${CMAKE_SOURCE_DIR}/tests/macos_bundle_test.cmake"
+    )
     add_executable(gesture_tracker_tests
         tests/gesture_tracker_tests.cpp
         src/gesture_tracker.cpp

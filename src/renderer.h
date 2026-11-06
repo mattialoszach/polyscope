@@ -4,6 +4,7 @@
 #include "camera.h"
 #include "mesh.h"
 #include "gesture.h"
+#include "platform.h"
 #include <glm/glm.hpp>
 
 class Renderer {
@@ -29,8 +30,8 @@ private:
     int m_height = 800;
 
     // ── 3D scene shaders ──────────────────────────────────────────────────────
-    Shader m_modelShader { SHADER_DIR "/model.vert", SHADER_DIR "/model.frag" };
-    Shader m_flatShader  { SHADER_DIR "/flat.vert",  SHADER_DIR "/flat.frag"  };
+    Shader m_modelShader { resourcePath("shaders/model.vert"), resourcePath("shaders/model.frag") };
+    Shader m_flatShader  { resourcePath("shaders/flat.vert"), resourcePath("shaders/flat.frag") };
 
     // ── Grid geometry ─────────────────────────────────────────────────────────
     GLuint m_gridVAO       = 0;
@@ -38,7 +39,7 @@ private:
     int    m_gridLineVerts = 0;
 
     // ── Camera overlay ────────────────────────────────────────────────────────
-    Shader m_overlayShader { SHADER_DIR "/overlay.vert", SHADER_DIR "/overlay.frag" };
+    Shader m_overlayShader { resourcePath("shaders/overlay.vert"), resourcePath("shaders/overlay.frag") };
 
     GLuint m_quadVAO = 0;   // textured camera quad (pos2 + uv2)
     GLuint m_quadVBO = 0;

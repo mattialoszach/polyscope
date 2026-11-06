@@ -4,11 +4,14 @@
 #include "renderer.h"
 #include "camera.h"
 #include "gesture.h"
+#include "platform.h"
+#include "model_loader.h"
 
 #include <iostream>
 #include <string>
 #include <filesystem>
 #include <memory>
+#include <fstream>
 
 // ── Application state ─────────────────────────────────────────────────────────
 // All mutable state that the GLFW callbacks need to reach.
@@ -67,10 +70,24 @@ static void cbResize(GLFWwindow* win, int w, int h) {
     app->renderer->resize(w, h);
 }
 
-static void cbKey(GLFWwindow* win, int key, int /*scan*/, int action, int /*mods*/) {
+static void cbDrop(GLFWwindow* win, int count, const char** paths);
+
+static void cbKey(GLFWwindow* win, int key, int /*scan*/, int action, int mods) {
     if (action != GLFW_PRESS) return;
     auto* app = static_cast<App*>(glfwGetWindowUserPointer(win));
     switch (key) {
+        case GLFW_KEY_O:
+            if (mods & GLFW_MOD_SUPER) {
+                const std::string selected = chooseModelFile();
+                if (!selected.empty()) {
+                    const char* selectedPath = selected.c_str();
+                    cbDrop(win, 1, &selectedPath);
+                }
+                // Modal panels can consume the mouse-up event.
+                app->leftDown = app->rightDown = false;
+                app->firstMove = true;
+            }
+            break;
         case GLFW_KEY_ESCAPE: glfwSetWindowShouldClose(win, GLFW_TRUE); break;
         case GLFW_KEY_R:      app->camera.reset();                       break;
         case GLFW_KEY_G:      app->showGrid  = !app->showGrid;           break;
@@ -129,7 +146,28 @@ static void cbDrop(GLFWwindow* win, int count, const char** paths) {
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 int main(int argc, char** argv) {
-    const std::string modelPath = argc > 1 ? argv[1] : ASSET_DIR "/sample.obj";
+    const bool checkResources = argc > 1 && std::string(argv[1]) == "--check-resources";
+    const bool smokeTest = argc > 1 && std::string(argv[1]) == "--smoke-test";
+    std::string modelPath;
+    try {
+        modelPath = argc > 1 && !checkResources && !smokeTest
+                  ? argv[1] : resourcePath("assets/sample.obj");
+        if (checkResources) {
+            for (const char* name : {"model.vert", "model.frag", "flat.vert",
+                                     "flat.frag", "overlay.vert", "overlay.frag"}) {
+                const std::string path = resourcePath(std::string("shaders/") + name);
+                std::ifstream shader(path);
+                if (!shader || shader.peek() == std::ifstream::traits_type::eof())
+                    throw std::runtime_error("Missing or empty shader: " + path);
+            }
+            const auto vertices = loadModelVertices(modelPath);
+            std::cout << "Bundle resources OK (" << vertices.size() / 3 << " sample triangles)\n";
+            return 0;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Resource error: " << e.what() << "\n";
+        return 1;
+    }
 
     glfwSetErrorCallback(cbError);
     if (!glfwInit()) {
@@ -145,6 +183,7 @@ int main(int argc, char** argv) {
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
 #endif
     glfwWindowHint(GLFW_SAMPLES, 4);  // 4× MSAA for smoother edges
+    if (smokeTest) glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
     GLFWwindow* window = glfwCreateWindow(1280, 800, "polyscope", nullptr, nullptr);
     if (!window) {
@@ -169,6 +208,23 @@ int main(int argc, char** argv) {
         glfwDestroyWindow(window);
         glfwTerminate();
         return 1;
+    }
+
+    // Exercise the real OpenGL/shader/model path without starting the camera.
+    if (smokeTest) {
+        app.renderer->render(*app.mesh, app.camera, true, false);
+        glFinish();
+        const GLenum error = glGetError();
+        app.mesh.reset();
+        app.renderer.reset();
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        if (error != GL_NO_ERROR) {
+            std::cerr << "OpenGL smoke test failed: " << error << "\n";
+            return 1;
+        }
+        std::cout << "OpenGL smoke test passed\n";
+        return 0;
     }
 
     // Start gesture source (camera capture runs on a background thread)
