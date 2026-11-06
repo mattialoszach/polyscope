@@ -602,9 +602,11 @@ void installMacInterface(GLFWwindow* window) {
 
 PlatformPreferences macPreferences() {
     @autoreleasepool {
-        return {[NSUserDefaults.standardUserDefaults boolForKey:@"showGrid"],
-                [NSUserDefaults.standardUserDefaults boolForKey:@"mirrorCamera"],
-                [NSUserDefaults.standardUserDefaults boolForKey:@"showPreview"]};
+        // BOOL is signed char on x86_64, so convert explicitly to avoid narrowing.
+        NSUserDefaults* defaults = NSUserDefaults.standardUserDefaults;
+        return {static_cast<bool>([defaults boolForKey:@"showGrid"]),
+                static_cast<bool>([defaults boolForKey:@"mirrorCamera"]),
+                static_cast<bool>([defaults boolForKey:@"showPreview"])};
     }
 }
 std::vector<PlatformEvent> takeMacEvents() {
