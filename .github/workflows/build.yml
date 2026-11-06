@@ -20,12 +20,8 @@ concurrency:
 
 jobs:
   build:
-    name: Build and test (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-15, macos-15-intel]
-    runs-on: ${{ matrix.os }}
+    name: Build and test
+    runs-on: macos-15
     timeout-minutes: 30
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: 3

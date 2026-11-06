@@ -55,6 +55,5 @@ or renderer changes, also run the built app's `--ui-smoke-test` and
 Keep generated files in a build directory and commit the source assets needed
 to rebuild the bundle.
 
-GitHub Actions builds and runs the automated suite on Apple Silicon and Intel
-macOS runners. It also compiles the documentation tool; live camera tests stay
-local.
+GitHub Actions builds and runs the automated suite on an Apple Silicon macOS
+runner. It also compiles the documentation tool; live camera tests stay local.
